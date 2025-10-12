@@ -82,7 +82,7 @@ async def _fetch_reacted_users(guild: discord.Guild, channel: discord.TextChanne
                 if not user.bot:
                     reacted_users.add(user)
 
-    log.debug(f"Collected {len(reacted_users)} unique reacted users")
+    log.debug(f"Collected {len(reacted_users)} unique user reactions")
     return reacted_users
 
 
@@ -90,6 +90,7 @@ async def _fetch_reacted_users(guild: discord.Guild, channel: discord.TextChanne
 async def on_ready():
     log.info(f"Logged in as {client.user}")
 
+    # Safety checks
     guild = client.get_guild(GUILD_ID)
     if guild is None:
         log.critical("Guild not found. Check GUILD_ID")
@@ -103,7 +104,7 @@ async def on_ready():
         return
 
 
-
+    # Kick and DM logic
     reacted_users = await _fetch_reacted_users(guild, channel, MESSAGE_IDS)
 
     all_members = [m for m in guild.members if not m.bot]
