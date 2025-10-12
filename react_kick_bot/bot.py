@@ -23,15 +23,15 @@ intents.guilds = True
 client = discord.Client(intents=intents)
 
 
-def _save_to_csv(kicked_users):
-    with open("kicked_users.csv", "w", newline="", encoding="utf-8") as f:
+def _save_to_csv(kicked_members: list[discord.Member]) -> None:
+    with open("kicked_members.csv", "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(["user_id", "username", "display_name"])
-        for u in kicked_users:
-            writer.writerow([u.id, u.name, u.display_name])
+        for m in kicked_members:
+            writer.writerow([m.id, m.name, m.display_name])
 
 
-async def _dm_and_kick(member, reason="Inactivity (Kicked by AtlasBot)"):
+async def _dm_and_kick(member: discord.Member, reason="Inactivity (Kicked by AtlasBot)") -> bool:
     """Send a DM to the user then attempts to kick them from the server."""
     # Send DM first
     try:
@@ -62,11 +62,11 @@ async def _dm_and_kick(member, reason="Inactivity (Kicked by AtlasBot)"):
     return False
 
 
-async def _fetch_reacted_users(guild: discord.Guild, channel: discord.TextChannel, message_ids: list[int]):
-    """Fetch all users who reacted to any of the specified messages."""
-    reacted_users = set()
+async def _fetch_reacted_members(channel: discord.TextChannel, message_ids: list[int]) -> set[discord.Member]:
+    """Fetch all members who reacted to any of the specified messages."""
+    reacted_members = set()
 
-    log.debug("Fetching messages and collecting reacted users...")
+    log.debug("Fetching messages and collecting reacted members...")
     for msg_id in message_ids:
         try:
             message = await channel.fetch_message(msg_id)
@@ -80,10 +80,10 @@ async def _fetch_reacted_users(guild: discord.Guild, channel: discord.TextChanne
         for reaction in message.reactions:
             async for user in reaction.users():
                 if not user.bot:
-                    reacted_users.add(user)
+                    reacted_members.add(user)
 
-    log.debug(f"Collected {len(reacted_users)} unique user reactions")
-    return reacted_users
+    log.debug(f"Collected {len(reacted_members)} unique member reactions")
+    return reacted_members
 
 
 @client.event
@@ -103,23 +103,23 @@ async def on_ready():
         await client.close()
         return
 
-
+    
     # Kick and DM logic
-    reacted_users = await _fetch_reacted_users(guild, channel, MESSAGE_IDS)
+    reacted_members = await _fetch_reacted_members(channel, MESSAGE_IDS)
 
     all_members = [m for m in guild.members if not m.bot]
-    kicked_users = []
+    kicked_members = []
 
-    log.info("Kicking users who haven't reacted (will take some time)...")
+    log.info("Kicking members who haven't reacted (will take some time)...")
     for member in all_members:
-        if member not in reacted_users:
+        if member not in reacted_members:
             kicked = await _dm_and_kick(member)
             if kicked:
-                kicked_users.append(member)
-    #await asyncio.sleep(1)  # Discordpy should handle rate limits automatically, but if not, add this back.
+                kicked_members.append(member)
+    #await asyncio.sleep(1)  # DiscordPy should handle rate limits automatically, but if not, add this back.
 
-    _save_to_csv(kicked_users)
-    log.info(f"Done. Kicked {len(kicked_users)} users. Logged to kicked_users.csv")
+    _save_to_csv(kicked_members)
+    log.info(f"Done. Kicked {len(kicked_members)} members. Logged to kicked_members.csv")
 
     await client.close()
 
