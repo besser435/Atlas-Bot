@@ -1,8 +1,8 @@
 import os
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
+import datetime
 import discord
-import asyncio
 import csv
 
 import bot_config
@@ -13,6 +13,7 @@ BOT_TOKEN = bot_config.BOT_TOKEN
 GUILD_ID = bot_config.GUILD_ID
 CHANNEL_ID = bot_config.CHANNEL_ID
 MESSAGE_IDS = bot_config.MESSAGE_IDS
+EXEMPT_DATE = bot_config.EXEMPT_DATE
 
 # Intents
 intents = discord.Intents.default()
@@ -86,6 +87,14 @@ async def _fetch_reacted_members(channel: discord.TextChannel, message_ids: list
     return reacted_members
 
 
+def _is_exempt(member: discord.Member, exempt_date: datetime.datetime=EXEMPT_DATE) -> bool:
+    """Return True if the member should not be kicked due to them joining after a certain date."""
+    if member.joined_at and (member.joined_at > exempt_date):
+        log.debug(f"{member.display_name} is new and will be exempt from being kicked (joined {member.joined_at})")
+        return True
+    return False
+
+
 @client.event
 async def on_ready():
     log.info(f"Logged in as {client.user}")
@@ -112,11 +121,13 @@ async def on_ready():
 
     log.info("Kicking members who haven't reacted (will take some time)...")
     for member in all_members:
+        if _is_exempt(member):
+            continue
         if member not in reacted_members:
             kicked = await _dm_and_kick(member)
             if kicked:
                 kicked_members.append(member)
-    #await asyncio.sleep(1)  # DiscordPy should handle rate limits automatically, but if not, add this back.
+        #await asyncio.sleep(1)  # DiscordPy should handle rate limits automatically, but if not, add this back.
 
     _save_to_csv(kicked_members)
     log.info(f"Done. Kicked {len(kicked_members)} members. Logged to kicked_members.csv")
