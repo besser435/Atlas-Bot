@@ -1,3 +1,5 @@
 /__pycache__
 /react_kick_bot/__pycache__
 /.idea
+/logs
+react_kick_bot/kicked_members.csv
