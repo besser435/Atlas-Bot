@@ -15,6 +15,7 @@ MESSAGE_IDS = [
 ]
 EXEMPT_DATE = datetime(2025, 10, 13, tzinfo=timezone.utc)
 # Any members who joined after this will be exempt from the reaction check
+DRY_RUN = True
 log_level = logging.DEBUG
 
 

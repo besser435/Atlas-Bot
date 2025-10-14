@@ -14,6 +14,7 @@ GUILD_ID = bot_config.GUILD_ID
 CHANNEL_ID = bot_config.CHANNEL_ID
 MESSAGE_IDS = bot_config.MESSAGE_IDS
 EXEMPT_DATE = bot_config.EXEMPT_DATE
+DRY_RUN = bot_config.DRY_RUN
 
 # Intents
 intents = discord.Intents.default()
@@ -27,14 +28,19 @@ client = discord.Client(intents=intents)
 def _save_to_csv(kicked_members: list[discord.Member]) -> None:
     with open("kicked_members.csv", "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(["user_id", "username", "display_name"])
+        writer.writerow(["user_id", "username", "display_name", "highest_role"])
+
         for m in kicked_members:
-            writer.writerow([m.id, m.name, m.display_name])
+            highest_role = m.top_role.name if m.top_role else "None"
+            writer.writerow([m.id, m.name, m.display_name, highest_role])
 
 
-async def _dm_and_kick(member: discord.Member, reason="Inactivity (Kicked by AtlasBot)") -> bool:
+async def _dm_and_kick(member: discord.Member, reason="Inactivity (Kicked by AtlasBot)", dry_run=DRY_RUN) -> bool:
     """Send a DM to the user then attempts to kick them from the server."""
-    # Send DM first
+    # Send DM first (must come before the kick, or the bot won't be able to message them)
+    if dry_run:
+        return True
+
     try:
         dm_message = (
             f"Hi {member.display_name},\n\n"
@@ -54,9 +60,8 @@ async def _dm_and_kick(member: discord.Member, reason="Inactivity (Kicked by Atl
         await member.kick(reason=reason)
         log.debug(f"Kicked {member.display_name}")
         return True
-
     except discord.Forbidden:
-        log.error(f"Missing permission to kick {member.display_name}")
+        log.warning(f"Missing permission to kick {member.display_name}")
     except Exception as e:
         log.error(f"Unexpected error kicking {member.display_name}: {e}")
 
@@ -88,10 +93,20 @@ async def _fetch_reacted_members(channel: discord.TextChannel, message_ids: list
 
 
 def _is_exempt(member: discord.Member, exempt_date: datetime.datetime=EXEMPT_DATE) -> bool:
-    """Return True if the member should not be kicked due to them joining after a certain date."""
+    """Return True if the member should not be kicked (joined after cutoff, or has higher role than the bot)."""
+    guild = member.guild
+    bot_member = guild.me
+
     if member.joined_at and (member.joined_at > exempt_date):
         log.debug(f"{member.display_name} is new and will be exempt from being kicked (joined {member.joined_at})")
         return True
+
+    if member.top_role >= bot_member.top_role:
+        # This isn't explicitly needed, as when trying to kick them it will just throw a missing perms error (forbidden).
+        # It's mainly to prevent sending the DM alerting them they have been kicked when they really weren't.
+        log.debug(f"{member.display_name} has an equal or higher role than the bot, skipping")
+        return True
+
     return False
 
 
@@ -112,14 +127,17 @@ async def on_ready():
         await client.close()
         return
 
-    
+    if DRY_RUN:
+        log.info(f"Dry run enabled, will not actually message or kick members")
+
+
     # Kick and DM logic
     reacted_members = await _fetch_reacted_members(channel, MESSAGE_IDS)
 
     all_members = [m for m in guild.members if not m.bot]
     kicked_members = []
 
-    log.info("Kicking members who haven't reacted (will take some time)...")
+    log.info("Kicking members who haven't reacted...")
     for member in all_members:
         if _is_exempt(member):
             continue
