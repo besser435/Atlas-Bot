@@ -15,6 +15,7 @@ CHANNEL_ID = bot_config.CHANNEL_ID
 MESSAGE_IDS = bot_config.MESSAGE_IDS
 EXEMPT_DATE = bot_config.EXEMPT_DATE
 DRY_RUN = bot_config.DRY_RUN
+EXEMPT_USER_IDS = bot_config.EXEMPT_USER_IDS
 
 # Intents
 intents = discord.Intents.default()
@@ -45,11 +46,13 @@ async def _dm_and_kick(member: discord.Member, reason="Inactivity (Kicked by Atl
         dm_message = (
             f"Hi {member.display_name},\n\n"
             "You might have been removed from the **AtlasCivs** server due to inactivity "
-            "(for not reacting to the verification messages). "
-            "You can always rejoin at any time here: https://discord.gg/43cUrmbmsb"
+            "(for not reacting to the verification messages). \n\n"
+            "If your application was accepted previously, you do not need to make a new one if you re-join."
+            "You are always welcome back! https://discord.gg/43cUrmbmsb"
         )
         await member.send(dm_message)
         log.debug(f"Messaged {member.display_name}")
+        return True
     except discord.Forbidden:
         log.info(f"Couldn't DM {member.display_name} (DMs closed)")
     except Exception as e:
@@ -60,7 +63,7 @@ async def _dm_and_kick(member: discord.Member, reason="Inactivity (Kicked by Atl
         await member.kick(reason=reason)
         log.debug(f"Kicked {member.display_name}")
         return True
-    except discord.Forbidden:
+    except discord.Forbidden: # Shouldn't happen due to check in _is_exempt(), but check anyways
         log.warning(f"Missing permission to kick {member.display_name}")
     except Exception as e:
         log.error(f"Unexpected error kicking {member.display_name}: {e}")
@@ -96,6 +99,10 @@ def _is_exempt(member: discord.Member, exempt_date: datetime.datetime=EXEMPT_DAT
     """Return True if the member should not be kicked (joined after cutoff, or has higher role than the bot)."""
     guild = member.guild
     bot_member = guild.me
+
+    if member.id in EXEMPT_USER_IDS:
+        log.debug(f"{member.display_name} was manually exempt and will not be kicked")
+        return True
 
     if member.joined_at and (member.joined_at > exempt_date):
         log.debug(f"{member.display_name} is new and will be exempt from being kicked (joined {member.joined_at})")
