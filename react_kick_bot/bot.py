@@ -45,14 +45,12 @@ async def _dm_and_kick(member: discord.Member, reason="Inactivity (Kicked by Atl
     try:
         dm_message = (
             f"Hi {member.display_name},\n\n"
-            "You might have been removed from the **AtlasCivs** server due to inactivity "
-            "(for not reacting to the verification messages). \n\n"
+            "You might have been removed from the **AtlasCivs** server due to inactivity. \n"
             "If your application was accepted previously, you do not need to make a new one if you re-join."
             "You are always welcome back! https://discord.gg/43cUrmbmsb"
         )
         await member.send(dm_message)
         log.debug(f"Messaged {member.display_name}")
-        return True
     except discord.Forbidden:
         log.info(f"Couldn't DM {member.display_name} (DMs closed)")
     except Exception as e:
